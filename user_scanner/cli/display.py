@@ -222,11 +222,14 @@ def print_interactive_menu():
     """Prints the interactive help and options menu."""
     menu_text = """[bold cyan]Interactive Console Commands:[/bold cyan]
   [white]• Enter any username or email[/white]     Scan target across all platforms
+  [white]• [bold cyan]new[/bold cyan] or [bold cyan]1[/bold cyan][/white]                          Scan another user / enter new target
+  [white]• [bold magenta]back[/bold magenta] or [bold magenta]b[/bold magenta][/white]                        Go back / reset active target context
+  [white]• [bold blue]users[/bold blue] or [bold blue]6[/bold blue][/white]                        List scanned users & switch context
   [white]• [bold yellow]loud[/bold yellow] or [bold yellow]2[/bold yellow][/white]                         Scan skipped loud modules for current target
-  [white]• [bold green]export <pdf|json|csv>[/bold green][/white]          Export scan results to file
-  [white]• [bold cyan]summary[/bold cyan] or [bold cyan]5[/bold cyan]                      Display merged final results for all scanned targets
-  [white]• [bold cyan]cats[/bold cyan] or [bold cyan]4[/bold cyan]                         List all available categories & modules
-  [white]• [bold cyan]clear[/bold cyan]                           Clear the console screen
-  [white]• [bold red]exit[/bold red] or [bold red]0[/bold red]                           Quit Shadowseek"""
+  [white]• [bold green]export <pdf|json|csv>[/bold green] or [bold green]3[/bold green][/white]    Export scan results to file
+  [white]• [bold cyan]summary[/bold cyan] or [bold cyan]5[/bold cyan][/white]                      Display merged final results for all targets
+  [white]• [bold cyan]cats[/bold cyan] or [bold cyan]4[/bold cyan][/white]                         List all available categories & modules
+  [white]• [bold cyan]clear[/bold cyan][/white]                           Clear the console screen
+  [white]• [bold red]exit[/bold red] or [bold red]0[/bold red][/white]                           Quit Shadowseek"""
     p = Panel(menu_text, title="[bold cyan]Shadowseek - Developed by govind[/bold cyan]", border_style="cyan", box=box.ROUNDED)
     console.print(p)

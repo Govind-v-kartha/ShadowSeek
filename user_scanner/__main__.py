@@ -120,6 +120,7 @@ def export_single_target_results(results, target, format_type="pdf", is_email=Fa
 
 
 def interactive_session():
+    import difflib
     print_banner()
     print_interactive_menu()
 
@@ -127,6 +128,19 @@ def interactive_session():
     last_is_email = False
     last_results = []
     session_targets_results = {}
+
+    KNOWN_COMMANDS = {
+        "exit", "quit", "q", "0",
+        "help", "h", "?",
+        "clear", "cls",
+        "cats", "list", "4",
+        "summary", "results", "final", "all", "5",
+        "loud", "2",
+        "export", "3",
+        "new", "scan", "target", "1",
+        "users", "targets", "history", "6",
+        "back", "b", "cancel", "reset",
+    }
 
     while True:
         target_hint = f" [{last_target}]" if last_target else ""
@@ -142,6 +156,22 @@ def interactive_session():
             continue
 
         cmd = line.lower()
+
+        # Check for near typos of commands
+        if cmd not in KNOWN_COMMANDS and "@" not in line and not line.startswith("export"):
+            close_matches = difflib.get_close_matches(cmd, list(KNOWN_COMMANDS), n=1, cutoff=0.75)
+            if close_matches:
+                suggested = close_matches[0]
+                try:
+                    ans = input(f"{Fore.YELLOW}[?] Did you mean '{suggested}'? (y/n, or 'back' to cancel): {Style.RESET_ALL}").strip().lower()
+                except (KeyboardInterrupt, EOFError):
+                    continue
+                if ans in ("y", "yes"):
+                    cmd = suggested
+                elif ans in ("back", "b", "cancel"):
+                    print(f"{Fore.YELLOW}[i] Cancelled.{Style.RESET_ALL}")
+                    continue
+
         if cmd in ("exit", "quit", "q", "0"):
             if session_targets_results:
                 display_final_merged_results(session_targets_results)
@@ -156,6 +186,62 @@ def interactive_session():
             os.system("cls" if os.name == "nt" else "clear")
             print_banner()
             print_interactive_menu()
+            continue
+
+        # Go back / reset active target context
+        if cmd in ("back", "b", "cancel", "reset"):
+            if last_target:
+                print(f"{Fore.GREEN}[i] Target context cleared. You are back at the main prompt.{Style.RESET_ALL}")
+                last_target = None
+                last_results = []
+                last_is_email = False
+            else:
+                print(f"{Fore.YELLOW}[i] Already at main prompt.{Style.RESET_ALL}")
+            continue
+
+        # Check another user / scan new target explicitly
+        if cmd in ("new", "1", "scan", "target"):
+            try:
+                new_inp = input(f"\n{Fore.CYAN}Enter username or email to scan (or 'back' to cancel): {Style.RESET_ALL}").strip()
+            except (KeyboardInterrupt, EOFError):
+                continue
+            if not new_inp or new_inp.lower() in ("back", "b", "cancel", "reset", "0", "exit", "quit"):
+                print(f"{Fore.YELLOW}[i] Action cancelled. Returning to prompt.{Style.RESET_ALL}")
+                continue
+            line = new_inp
+            cmd = line.lower()
+
+        # List all scanned users in session & switch between them
+        if cmd in ("users", "targets", "history", "6"):
+            if not session_targets_results:
+                print(f"{Fore.YELLOW}[!] No users scanned yet in this session.{Style.RESET_ALL}")
+                continue
+            print(f"\n{Fore.CYAN}Scanned Users in Session ({len(session_targets_results)}):{Style.RESET_ALL}")
+            target_list = list(session_targets_results.keys())
+            for idx, t in enumerate(target_list, 1):
+                t_res = session_targets_results[t]
+                hits = len([r for r in t_res if r.is_found()])
+                t_type = "Email" if is_valid_email(t) else "Username"
+                active_marker = f" {Fore.GREEN}(active){Style.RESET_ALL}" if t == last_target else ""
+                print(f"  {Fore.CYAN}[{idx}]{Style.RESET_ALL} {Fore.WHITE}{t}{Style.RESET_ALL} ({t_type} - {Fore.GREEN}{hits} hits{Style.RESET_ALL}){active_marker}")
+
+            try:
+                sel = input(f"\n{Fore.CYAN}Select target number to switch to, or 'back' to cancel: {Style.RESET_ALL}").strip()
+            except (KeyboardInterrupt, EOFError):
+                continue
+            if sel.lower() in ("back", "b", "cancel", "0", "exit"):
+                print(f"{Fore.YELLOW}[i] Returning to prompt.{Style.RESET_ALL}")
+                continue
+            if sel.isdigit() and 1 <= int(sel) <= len(target_list):
+                selected_target = target_list[int(sel) - 1]
+                last_target = selected_target
+                last_results = session_targets_results[selected_target]
+                last_is_email = is_valid_email(selected_target)
+                print(f"{Fore.GREEN}[✔] Switched active target to: {last_target}{Style.RESET_ALL}")
+                config = ScanConfig(allow_loud=False, side_by_side=True)
+                display_scan_results(last_results, config, target=last_target, is_email=last_is_email)
+            else:
+                print(f"{Fore.YELLOW}[i] Invalid selection. Returning to prompt.{Style.RESET_ALL}")
             continue
 
         if cmd in ("cats", "list", "4"):
@@ -189,7 +275,11 @@ def interactive_session():
                     modules_to_run.extend(found)
             if modules_to_run:
                 fn = run_email_module_batch if last_is_email else run_user_module
-                loud_results = fn(modules_to_run, last_target, config)
+                try:
+                    loud_results = fn(modules_to_run, last_target, config)
+                except KeyboardInterrupt:
+                    print(f"\n{Fore.YELLOW}[!] Loud scan cancelled by user.{Style.RESET_ALL}")
+                    continue
                 loud_map = {r.site_name.lower(): r for r in loud_results if r.site_name}
                 new_results = []
                 for r in last_results:
@@ -211,15 +301,27 @@ def interactive_session():
             fmt = parts[1].lower() if len(parts) > 1 else ""
             if not fmt or fmt not in ("pdf", "json", "csv"):
                 try:
-                    fmt = input(f"{Fore.CYAN}Export format [pdf/json/csv] (default: pdf): {Style.RESET_ALL}").strip().lower() or "pdf"
+                    fmt = input(f"{Fore.CYAN}Export format [pdf/json/csv] (default: pdf, or 'back' to cancel): {Style.RESET_ALL}").strip().lower()
                 except (KeyboardInterrupt, EOFError):
                     continue
+                if fmt in ("back", "b", "cancel"):
+                    print(f"{Fore.YELLOW}[i] Export cancelled.{Style.RESET_ALL}")
+                    continue
+                if not fmt:
+                    fmt = "pdf"
             export_single_target_results(last_results, last_target, fmt, is_email=last_is_email)
             continue
 
-        # Treat input as target: username or email
+        # Validation for user input errors
         target = line.strip()
-        is_email = is_valid_email(target)
+        if "@" in target:
+            if not is_valid_email(target):
+                print(f"{Fore.RED}[✘] Invalid email format: '{target}'. Check for typos or type 'back'.{Style.RESET_ALL}")
+                continue
+            is_email = True
+        else:
+            is_email = False
+
         if is_email:
             print(f"\n{Fore.CYAN} Checking email: {target}{Style.RESET_ALL}")
         else:
@@ -235,6 +337,9 @@ def interactive_session():
             last_is_email = is_email
             session_targets_results[target] = list(last_results)
             display_scan_results(last_results, config, target=target, is_email=is_email)
+        except KeyboardInterrupt:
+            print(f"\n{Fore.YELLOW}[!] Scan cancelled by user. Returning to prompt.{Style.RESET_ALL}")
+            continue
         except Exception as e:
             print(f"{Fore.RED}[✘] Scan error: {e}{Style.RESET_ALL}")
 

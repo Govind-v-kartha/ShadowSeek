@@ -155,6 +155,7 @@ def test_bulk_emails_skip_comments_blank_lines(tmp_path, run_main, capsys):
     assert exit_code == 0
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="chmod(0) does not deny read access on Windows")
 def test_email_file_unreadable(tmp_path, run_main):
     email_file = tmp_path / "test_emails.txt"
     email_file.write_text("user@example.com")
@@ -223,6 +224,7 @@ def test_username_email_domains_use_email_modules(run_main, capsys):
     assert exit_code == 0
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="chmod(0) does not deny read access on Windows")
 def test_username_file_unreadable(tmp_path, run_main):
     username_file = tmp_path / "test_usernames.txt"
     username_file.write_text("user")
